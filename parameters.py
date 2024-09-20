@@ -5,7 +5,7 @@ class my_parameters:
         super(my_parameters,self).__init__()
         #超参数
         parser=argparse.ArgumentParser()
-        parser.add_argument("--img-size",type=int,default=400)
+        parser.add_argument("--img-size",type=int,default=300)
         parser.add_argument("--batch-size",type=int,default=32)
         parser.add_argument("--num-epochs",type=int,default=10000)
         parser.add_argument('--lr', type=float, default=1e-4, help='学习率')

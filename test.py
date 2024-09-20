@@ -9,6 +9,7 @@ import csv
 from EarlyStop import EarlyStop
 import cv2
 import matplotlib.pyplot as plt
+import utils
 
 def load_img(args,path):
     img0=cv2.imread(path,cv2.IMREAD_GRAYSCALE)
@@ -36,30 +37,31 @@ def main():
 
     model=onn.Net()
     model.load_state_dict(torch.load('./saved_model/best.pth'))
-    outputs_L=model(input_images_Total)
-    (pre_A,pre_phi)=outputs_L
+    model.eval()
+    pre_Elr=model(input_images_Total)
+    pre_Alr,_=utils.complex2Afai(pre_Elr)
+    pre_Exy=utils.convertLR2XY(pre_Elr)
+    pre_Axy,_=utils.complex2Afai(pre_Exy)
+    pre_Eab=utils.convertLR2AB(pre_Elr)
+    pre_Aab,_=utils.complex2Afai(pre_Eab)
+    
 
-    phi_norm=1/(2*torch.pi*args.img_size**2)
-    criterion = torch.nn.MSELoss(reduction='sum')
-    lossA=criterion(pre_A,target_A).float()
-    lossphi=criterion(pre_phi,delta_phi).float()*phi_norm
-    print('A:{:.9f},phi:{:.9f}'.format(lossA,lossphi))
-
-    pre_A=pre_A.detach().numpy()
-    pre_phi=pre_phi.detach().numpy()
+    pre_Alr=pre_Alr.detach().numpy()
+    pre_Axy=pre_Axy.detach().numpy()
+    pre_Aab=pre_Aab.detach().numpy()
 
     plt.subplot(3,2,1)
-    plt.imshow(AL,cmap='gray')
+    plt.imshow(pre_Aab[0,:,:],cmap='gray',vmin=0)
     plt.subplot(3,2,2)
-    plt.imshow(pre_A[0,:,:],cmap='gray')
+    plt.imshow(pre_Aab[1,:,:],cmap='gray',vmin=0)
     plt.subplot(3,2,3)
-    plt.imshow(AR,cmap='gray')
+    plt.imshow(pre_Axy[0,:,:],cmap='gray',vmin=0)
     plt.subplot(3,2,4)
-    plt.imshow(pre_A[1,:,:],cmap='gray')
+    plt.imshow(pre_Axy[1,:,:],cmap='gray',vmin=0)
     plt.subplot(3,2,5)
-    plt.imshow(delta_phi,cmap='gray')
+    plt.imshow(pre_Alr[0,:,:],cmap='gray',vmin=0)
     plt.subplot(3,2,6)
-    plt.imshow(pre_phi,cmap='gray')
+    plt.imshow(pre_Alr[1,:,:],cmap='gray',vmin=0)
 
     plt.savefig('result/vectorial_hologram_1.png')
     plt.show()

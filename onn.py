@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import parameters
 import random
+import torch.nn as nn
 
 
 class DiffractiveLayer(torch.nn.Module):
@@ -38,6 +39,7 @@ class TransmissionLayer(torch.nn.Module):
         self.args=parameters.my_parameters().get_hyperparameter()
         self.actual_situation = parameters.my_parameters().get_actualparameter()
         self.phase = torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
+        self.dropout = nn.Dropout(p=0.1, inplace=False)
         #空间复用
         mask_L2R=torch.from_numpy(np.fromfunction(lambda i, j: (i+j)%2,shape=(self.args.img_size, self.args.img_size), dtype=np.int16))
         mask_R2L=1-mask_L2R
@@ -47,6 +49,7 @@ class TransmissionLayer(torch.nn.Module):
         #     torch.stack([torch.ones([self.args.img_size,self.args.img_size]),-torch.ones([self.args.img_size,self.args.img_size])],0)
         #     .float(),requires_grad=False)
 
+
     def forward(self, x):
         if self.actual_situation.manufacturing_error:
             mask =self.phase + torch.from_numpy(np.random.random(size=[self.args.img_size
@@ -54,9 +57,10 @@ class TransmissionLayer(torch.nn.Module):
             mask=torch.complex(torch.cos(mask), torch.sin(mask))
         else:
             mask=torch.complex(torch.cos(self.phase), torch.sin(self.phase))
+        x = self.dropout(x)
         x=torch.mul(torch.mul(x,self.grometry_mask),mask)
         x_cross_talk=torch.mul(torch.mul(x,self.cross_talk),mask)
-        x=x+x_cross_talk
+        x = x+x_cross_talk
         return x
 
 class DTLayer(torch.nn.Module):
@@ -103,12 +107,13 @@ class Net(torch.nn.Module):
             x=torch.mul(x,mask)
         x=self.tra(x)
         x=self.dif(x)
-        res_angle=torch.angle(x[1,:,:]-x[0,:,:])
+        return x
+    
+        res_angle=torch.angle(x[1,:,:])-torch.angle(x[0,:,:])
         res_angle=(res_angle+2*torch.pi)%(2*torch.pi)
 
         x_abs=abs(x) ; x_energy=x_abs*x_abs
-        ss=torch.sum(x_energy,dim=(0,1,2)).unsqueeze(dim=0).unsqueeze(dim=1).unsqueeze(dim=2) #归一化
-        x_energy=x_energy.div(ss)*2
+        x_energy=x_energy/torch.sum(x_energy)
         return (x_energy,res_angle)
 
 if __name__=="__main__":
