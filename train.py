@@ -61,7 +61,7 @@ def main(args):
     train_images=torch.ones(size=[2,args.img_size,args.img_size])/pixel_num if device=='cpu'  else (torch.ones(size=[2,args.img_size,args.img_size])/pixel_num).cuda()
 
     model=onn.Net()
-    model.load_state_dict(torch.load('./saved_model/best.pth'))
+    # model.load_state_dict(torch.load('./saved_model/best.pth'))
     model.to(device)
     
     criterion = torch.nn.MSELoss(reduction='sum') if device == "cpu" else torch.nn.MSELoss(reduction='sum').cuda()

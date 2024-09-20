@@ -27,9 +27,13 @@ def main():
     Exy=torch.stack((imgX,imgY),0).float();Exy=Exy/torch.sum(Exy)
     Elr=torch.stack((imgL,imgR),0).float();Elr=Elr/torch.sum(Elr)
 
-    final_ab=torch.zeros([2,300,300]);    final_ab[:,:,0:100]=Eab
-    final_xy=torch.zeros([2,300,300]);    final_xy[:,:,100:200]=Exy
-    final_lr=torch.zeros([2,300,300]);    final_lr[:,:,200:300]=Elr
+    half_Eab=torch.sum(Eab,dim=0)*0.25;half_Exy=torch.sum(Exy,dim=0)*0.25;half_Elr=torch.sum(Elr,dim=0)*0.25
+    final_ab=torch.zeros([2,300,300]);    final_ab[:,:,0:100]=Eab;final_ab[:,:,100:200]=half_Exy;final_ab[:,:,200:]=half_Elr
+    final_xy=torch.zeros([2,300,300]);    final_xy[:,:,0:100]=half_Eab ;final_xy[:,:,100:200]=Exy;final_xy[:,:,200:]=half_Elr
+    final_lr=torch.zeros([2,300,300]);    final_lr[:,:,0:100]=half_Eab;final_lr[:,:,100:200]=half_Exy;final_lr[:,:,200:]=Elr
+    final_ab=final_ab/torch.sum(final_ab)
+    final_xy=final_xy/torch.sum(final_xy)
+    final_lr=final_lr/torch.sum(final_lr)
     torch.save(final_ab,'./dataset/Eab.pt')
     torch.save(final_xy,'./dataset/Exy.pt')
     torch.save(final_lr,'./dataset/Elr.pt')

@@ -21,14 +21,28 @@ def load_img(args,path):
 def main():
     args=parameters.my_parameters().get_hyperparameter()
 
-    AL=load_img(args,'./dataset/newleft.png')
-    AL=torch.from_numpy(AL).float() 
-    AR=load_img(args,'./dataset/newright.png')
-    AR=torch.from_numpy(AR).float() 
-    target_A=torch.stack((AL,AR),0)
-    delta_phi=torch.zeros((args.img_size,args.img_size))
-    delta_phi[args.img_size//2:,:args.img_size//2]=torch.pi/2 ; delta_phi[args.img_size//2:,args.img_size//2:]=torch.pi
-    delta_phi[:args.img_size//2,args.img_size//2:]=torch.pi*3/2
+    target_Eab=torch.load('./dataset/Eab.pt')
+    target_Exy=torch.load('./dataset/Exy.pt')
+    target_Elr=torch.load('./dataset/Elr.pt')
+    
+    target_Eab=target_Eab.detach().numpy()
+    target_Exy=target_Exy.detach().numpy()
+    target_Elr=target_Elr.detach().numpy()
+
+    plt.figure()
+    plt.subplot(3,2,1)
+    plt.imshow(target_Eab[0,:,:],cmap='gray',vmin=0)
+    plt.subplot(3,2,2)
+    plt.imshow(target_Eab[1,:,:],cmap='gray',vmin=0)
+    plt.subplot(3,2,3)
+    plt.imshow(target_Exy[0,:,:],cmap='gray',vmin=0)
+    plt.subplot(3,2,4)
+    plt.imshow(target_Exy[1,:,:],cmap='gray',vmin=0)
+    plt.subplot(3,2,5)
+    plt.imshow(target_Elr[0,:,:],cmap='gray',vmin=0)
+    plt.subplot(3,2,6)
+    plt.imshow(target_Elr[1,:,:],cmap='gray',vmin=0)
+
     #入射光
     pixel_num=args.img_size*args.img_size
     input_images=torch.ones(size=[2,args.img_size,args.img_size])/pixel_num 
@@ -50,6 +64,7 @@ def main():
     pre_Axy=pre_Axy.detach().numpy()
     pre_Aab=pre_Aab.detach().numpy()
 
+    plt.figure()
     plt.subplot(3,2,1)
     plt.imshow(pre_Aab[0,:,:],cmap='gray',vmin=0)
     plt.subplot(3,2,2)
