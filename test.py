@@ -20,9 +20,9 @@ def load_img(args,path):
 def main():
     args=parameters.my_parameters().get_hyperparameter()
 
-    AL=load_img(args,'./dataset/left.png')
+    AL=load_img(args,'./dataset/newleft.png')
     AL=torch.from_numpy(AL).float() 
-    AR=load_img(args,'./dataset/right.png')
+    AR=load_img(args,'./dataset/newright.png')
     AR=torch.from_numpy(AR).float() 
     target_A=torch.stack((AL,AR),0)
     delta_phi=torch.zeros((args.img_size,args.img_size))
