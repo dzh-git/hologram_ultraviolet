@@ -34,9 +34,15 @@ def main():
     final_ab=final_ab/torch.sum(final_ab)
     final_xy=final_xy/torch.sum(final_xy)
     final_lr=final_lr/torch.sum(final_lr)
-    torch.save(final_ab,'./dataset/Eab.pt')
-    torch.save(final_xy,'./dataset/Exy.pt')
-    torch.save(final_lr,'./dataset/Elr.pt')
+    final_Eab=torch.zeros([2,1000,1000]);final_Eab[:,350:650,350:650]=final_ab
+    final_Exy=torch.zeros([2,1000,1000]);final_Exy[:,350:650,350:650]=final_xy
+    final_Elr=torch.zeros([2,1000,1000]);final_Elr[:,350:650,350:650]=final_lr
+    torch.save(final_Eab,'./dataset/Eab.pt')
+    torch.save(final_Eab,'./dataset/Exy.pt')
+    torch.save(final_Eab,'./dataset/Elr.pt')
+    gd_mask=torch.load('./dataset/gd_mask.pt')
+    new_mask=torch.zeros([1000,1000]);new_mask[350:650,350:650]=gd_mask
+    torch.save(final_Eab,'./dataset/gd_mask_1000.pt')
     return 
 
     [width,height]=imgA.shape

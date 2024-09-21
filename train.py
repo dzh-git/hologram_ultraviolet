@@ -48,7 +48,8 @@ def main(args):
     target_Eab=torch.load('./dataset/Eab.pt')
     target_Exy=torch.load('./dataset/Exy.pt')
     target_Elr=torch.load('./dataset/Elr.pt')
-    gd_mask=torch.load('./dataset/gd_mask.pt')
+    gd_mask=torch.zeros([1000,1000])
+    gd_mask[350:650,350:650]=torch.ones([300,300])
 
     if device !='cpu':
         target_Eab=target_Eab.cuda()
@@ -61,7 +62,7 @@ def main(args):
     train_images=torch.ones(size=[2,args.img_size,args.img_size])/pixel_num if device=='cpu'  else (torch.ones(size=[2,args.img_size,args.img_size])/pixel_num).cuda()
 
     model=onn.Net()
-    # model.load_state_dict(torch.load('./saved_model/best.pth'))
+    model.load_state_dict(torch.load('./saved_model/best.pth'))
     model.to(device)
     
     criterion = torch.nn.MSELoss(reduction='sum') if device == "cpu" else torch.nn.MSELoss(reduction='sum').cuda()
@@ -75,6 +76,10 @@ def main(args):
         pre_Axy,_=utils.complex2Afai(pre_Exy)
         pre_Eab=utils.convertLR2AB(pre_Elr)
         pre_Aab,_=utils.complex2Afai(pre_Eab)
+
+        pre_Alr=pre_Alr*gd_mask
+        pre_Axy=pre_Axy*gd_mask
+        pre_Aab=pre_Aab*gd_mask
 
         lossLR=criterion(pre_Alr,target_Elr).float()
         lossXY=criterion(pre_Axy,target_Exy).float()

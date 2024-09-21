@@ -78,7 +78,19 @@ def main():
     plt.subplot(3,2,6)
     plt.imshow(pre_Alr[1,:,:],cmap='gray',vmin=0)
 
-    plt.savefig('result/vectorial_hologram_1.png')
+    plt.figure()
+    plt.subplot(1,2,1)
+    plt.imshow(target_Eab[0,:,:],cmap='gray',vmin=0)
+    plt.subplot(1,2,2)
+    plt.imshow(pre_Aab[0,:,:],cmap='gray',vmin=0)
+
+    plt.figure()
+    plt.subplot(1,2,1)
+    plt.imshow(target_Eab[1,:,:],cmap='gray',vmin=0)
+    plt.subplot(1,2,2)
+    plt.imshow(pre_Aab[1,:,:],cmap='gray',vmin=0)
+
+    # plt.savefig('result/vectorial_hologram_1.png')
     plt.show()
 
 if __name__=='__main__':
