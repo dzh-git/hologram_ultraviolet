@@ -51,12 +51,7 @@ class TransmissionLayer(torch.nn.Module):
         self.actual_situation = parameters.my_parameters().get_actualparameter()
         self.phase = torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
         self.dropout = nn.Dropout(p=0.1, inplace=False)
-        #空间复用
-        # mask_L2R=torch.from_numpy(np.fromfunction(lambda i, j: (i+j)%2,shape=(self.args.img_size, self.args.img_size), dtype=np.int16))
-        # mask_R2L=1-mask_L2R
-        # self.grometry_mask=torch.nn.Parameter(torch.stack((mask_L2R,mask_R2L),0).float(),requires_grad=False)
-        # self.cross_talk=torch.nn.Parameter(torch.stack((-mask_R2L,-mask_L2R),0).float(),requires_grad=False)
-
+        #左右旋
         self.grometry_mask=torch.nn.Parameter(
             torch.stack([torch.ones([self.args.img_size,self.args.img_size]),-torch.ones([self.args.img_size,self.args.img_size])],0)
             .float(),requires_grad=False)
@@ -65,21 +60,18 @@ class TransmissionLayer(torch.nn.Module):
         if self.actual_situation.manufacturing_error:
             mask =self.phase + torch.from_numpy(np.random.random(size=[self.args.img_size
                     ,self.args.img_size]).astype('float32')).cuda()*random.choice([1,-1])*2
-            mask=torch.complex(torch.cos(mask), torch.sin(mask))
+            new_phase=torch.mul(self.grometry_mask,self.phase)
+            mask=torch.complex(torch.cos(new_phase), torch.sin(new_phase))
         else:
             new_phase=torch.mul(self.grometry_mask,self.phase)
             mask=torch.complex(torch.cos(new_phase), torch.sin(new_phase))
         x=torch.mul(x,mask)
-        # x=torch.mul(torch.mul(x,self.grometry_mask),mask)
-        # x_cross_talk=torch.mul(torch.mul(x,self.cross_talk),mask)
-        # x=x+x_cross_talk
         return x
 
 class DTLayer(torch.nn.Module):
     def __init__(self):
         super(DTLayer,self).__init__()
-        # self.dif=DiffractiveLayer()
-        self.dif=DiffraFouriourLayer()
+        self.dif=DiffractiveLayer()
         self.tra=TransmissionLayer()
         
 
@@ -121,7 +113,7 @@ class Net(torch.nn.Module):
             x=torch.mul(x,mask)
         x=self.tra(x)
         x=self.dif(x)
-        return x
+        # return x
     
         res_angle=torch.angle(x[1,:,:])-torch.angle(x[0,:,:])
         res_angle=(res_angle+2*torch.pi)%(2*torch.pi)

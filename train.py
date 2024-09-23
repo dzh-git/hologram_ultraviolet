@@ -28,41 +28,41 @@ def main(args):
 
     device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     
-    # path1='./dataset/newleft.png';path2='./dataset/newright.png'
-    # AL=load_img(args,path1)
-    # AL=torch.from_numpy(AL).float() if device=='cpu' else torch.from_numpy(AL).float().cuda()
-    # AR=load_img(args,path2)
-    # AR=torch.from_numpy(AR).float() if device=='cpu' else torch.from_numpy(AR).float().cuda()
-    # phase_mask=calc_phaseMask(args,path1,path2)
-    # target_A=torch.stack((AL,AR),0)
+    path1='./dataset/newleft.png';path2='./dataset/newright.png'
+    AL=load_img(args,path1)
+    AL=torch.from_numpy(AL).float() if device=='cpu' else torch.from_numpy(AL).float().cuda()
+    AR=load_img(args,path2)
+    AR=torch.from_numpy(AR).float() if device=='cpu' else torch.from_numpy(AR).float().cuda()
+    phase_mask=utils.calc_phaseMask(args,path1,path2)
+    target_A=torch.stack((AL,AR),0)
 
-    # delta_phi=torch.zeros((args.img_size,args.img_size))
-    # delta_phi[args.img_size//2:,:args.img_size//2]=torch.pi/2 ; delta_phi[args.img_size//2:,args.img_size//2:]=torch.pi
-    # delta_phi[:args.img_size//2,args.img_size//2:]=torch.pi*3/2
-    # if device !='cpu':
-    #     delta_phi=delta_phi.cuda()
-    #     phase_mask=phase_mask.cuda()
-    # delta_phi=delta_phi*phase_mask
-    # target_A=target_A*phase_mask
-
-    target_Eab=torch.load('./dataset/Eab.pt')
-    target_Exy=torch.load('./dataset/Exy.pt')
-    target_Elr=torch.load('./dataset/Elr.pt')
-    gd_mask=torch.zeros([1000,1000])
-    gd_mask[350:650,350:650]=torch.ones([300,300])
-
+    delta_phi=torch.zeros((args.img_size,args.img_size))
+    delta_phi[args.img_size//2:,:args.img_size//2]=torch.pi/2 ; delta_phi[args.img_size//2:,args.img_size//2:]=torch.pi
+    delta_phi[:args.img_size//2,args.img_size//2:]=torch.pi*3/2
     if device !='cpu':
-        target_Eab=target_Eab.cuda()
-        target_Exy=target_Exy.cuda()
-        target_Elr=target_Elr.cuda()
-        gd_mask=gd_mask.cuda()
+        delta_phi=delta_phi.cuda()
+        phase_mask=phase_mask.cuda()
+    delta_phi=delta_phi*phase_mask
+    target_A=target_A*phase_mask
+
+    # target_Eab=torch.load('./dataset/Eab.pt')
+    # target_Exy=torch.load('./dataset/Exy.pt')
+    # target_Elr=torch.load('./dataset/Elr.pt')
+    # gd_mask=torch.zeros([1000,1000])
+    # gd_mask[350:650,350:650]=torch.ones([300,300])
+
+    # if device !='cpu':
+    #     target_Eab=target_Eab.cuda()
+    #     target_Exy=target_Exy.cuda()
+    #     target_Elr=target_Elr.cuda()
+    #     gd_mask=gd_mask.cuda()
 
     #线偏光入射
     pixel_num=args.img_size*args.img_size
     train_images=torch.ones(size=[2,args.img_size,args.img_size])/pixel_num if device=='cpu'  else (torch.ones(size=[2,args.img_size,args.img_size])/pixel_num).cuda()
 
     model=onn.Net()
-    # model.load_state_dict(torch.load(r'./saved_model/best.pth'))
+    model.load_state_dict(torch.load(r'./saved_model/last.pth'))
     model.to(device)
     
     criterion = torch.nn.MSELoss(reduction='sum') if device == "cpu" else torch.nn.MSELoss(reduction='sum').cuda()
@@ -70,27 +70,21 @@ def main(args):
     early_stopping=EarlyStop()
     for epoch in range(args.num_epochs):
         model.train()
-        pre_Elr=model(train_images)
-        pre_Alr,_=utils.complex2Afai(pre_Elr)
-        pre_Exy=utils.convertLR2XY(pre_Elr)
-        pre_Axy,_=utils.complex2Afai(pre_Exy)
-        pre_Eab=utils.convertLR2AB(pre_Elr)
-        pre_Aab,_=utils.complex2Afai(pre_Eab)
+        outputs=model(train_images)
+        (pre_A,pre_phi)=outputs
 
-        pre_Alr=pre_Alr*gd_mask
-        pre_Axy=pre_Axy*gd_mask
-        pre_Aab=pre_Aab*gd_mask
-
-        lossLR=criterion(pre_Alr,target_Elr).float()
-        lossXY=criterion(pre_Axy,target_Exy).float()
-        lossAB=criterion(pre_Aab,target_Eab).float()
-        total_loss=lossLR+lossXY+lossAB
+        phi_norm=1/(2*torch.pi*args.img_size**2)
+        pre_A=pre_A*phase_mask
+        pre_phi=pre_phi*phase_mask
+        lossA=criterion(pre_A,target_A).float()
+        lossphi=criterion(pre_phi,delta_phi).float()*phi_norm
+        total_loss=lossA+lossphi*1e-5
         optimizer.zero_grad()
         total_loss.backward()
         optimizer.step()
         
         if epoch%50==0:
-            print('lr:{:.9f},xy:{:.9f},ab:{:.9f}'.format(lossLR,lossXY,lossAB))
+            print('A:{:.9f},phi:{:.9f},total:{:.9f}'.format(lossA,lossphi,total_loss))
         early_stopping(-total_loss, model)
         if early_stopping.early_stop:
             print("Early stopping")
