@@ -42,7 +42,7 @@ def main(args):
     train_images=torch.ones(size=[2,args.img_size,args.img_size])/pixel_num if device=='cpu'  else (torch.ones(size=[2,args.img_size,args.img_size])/pixel_num).cuda()
 
     model=onn.Net()
-    model.load_state_dict(torch.load('./saved_model/best.pth'))
+    # model.load_state_dict(torch.load(r'./saved_model/best.pth'))
     model.to(device)
     
     criterion = torch.nn.MSELoss(reduction='sum') if device == "cpu" else torch.nn.MSELoss(reduction='sum').cuda()
@@ -56,7 +56,7 @@ def main(args):
         phi_norm=1/(2*torch.pi*args.img_size**2)
         lossA=criterion(pre_A,target_A).float()
         lossphi=criterion(pre_phi,delta_phi).float()*phi_norm
-        total_loss=lossA+lossphi*1e-3
+        total_loss=lossA+lossphi*1e-8
         optimizer.zero_grad()
         total_loss.backward()
         optimizer.step()
