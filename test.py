@@ -35,6 +35,8 @@ def main():
     input_images=torch.ones(size=[2,args.img_size,args.img_size])/pixel_num 
     input_images_Total=torch.stack([torch.ones([args.img_size,args.img_size]),torch.ones([args.img_size,args.img_size])],0).float()
     input_images_R=torch.stack([torch.zeros([args.img_size,args.img_size]),torch.ones([args.img_size,args.img_size])],0).float()
+    input_images_Total=input_images_Total/torch.sum(input_images_Total)
+
 
     model=onn.Net()
     model.load_state_dict(torch.load('./saved_model/best.pth'))
@@ -45,10 +47,12 @@ def main():
     criterion = torch.nn.MSELoss(reduction='sum')
     lossA=criterion(pre_A,target_A).float()
     lossphi=criterion(pre_phi,delta_phi).float()*phi_norm
+    print("output1:",torch.sum(pre_A[0,:,:]),torch.max(pre_A[0,:,:]),torch.min(pre_A[0,:,:]))
+    print("output2:",torch.sum(pre_A[1,:,:]),torch.max(pre_A[1,:,:]),torch.min(pre_A[1,:,:]))
     print('A:{:.9f},phi:{:.9f}'.format(lossA,lossphi))
-
+    
     pre_A=pre_A.detach().numpy()
-    pre_phi=pre_phi.detach().numpy()
+    pre_phi=pre_phi.detach().numpy()    
 
     plt.subplot(3,2,1)
     plt.imshow(AL,cmap='gray',vmin=0)
@@ -57,7 +61,7 @@ def main():
     plt.subplot(3,2,3)
     plt.imshow(AR,cmap='gray',vmin=0)
     plt.subplot(3,2,4)
-    plt.imshow(pre_A[1,:,:],cmap='gray',vmin=0)
+    plt.imshow(pre_A[1,:,:],cmap='gray',vmin=np.min(pre_A[1,:,:]),vmax=np.max(pre_A[1,:,:]))
     plt.subplot(3,2,5)
     plt.imshow(delta_phi,cmap='gray',vmin=0)
     plt.subplot(3,2,6)

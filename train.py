@@ -44,6 +44,7 @@ def main(args):
         phase_mask=phase_mask.cuda()
     delta_phi=delta_phi*phase_mask
     target_A=target_A*phase_mask
+    target_A=target_A/2*1e6
 
     # target_Eab=torch.load('./dataset/Eab.pt')
     # target_Exy=torch.load('./dataset/Exy.pt')
@@ -60,9 +61,11 @@ def main(args):
     #线偏光入射
     pixel_num=args.img_size*args.img_size
     train_images=torch.ones(size=[2,args.img_size,args.img_size])/pixel_num if device=='cpu'  else (torch.ones(size=[2,args.img_size,args.img_size])/pixel_num).cuda()
+    total_energy=torch.sum(train_images)
+    train_images=train_images/total_energy*1e6
 
     model=onn.Net()
-    model.load_state_dict(torch.load(r'./saved_model/last.pth'))
+    model.load_state_dict(torch.load(r'./saved_model/best.pth'))
     model.to(device)
     
     criterion = torch.nn.MSELoss(reduction='sum') if device == "cpu" else torch.nn.MSELoss(reduction='sum').cuda()
@@ -73,17 +76,20 @@ def main(args):
         outputs=model(train_images)
         (pre_A,pre_phi)=outputs
 
-        phi_norm=1/(2*torch.pi*args.img_size**2)
         pre_A=pre_A*phase_mask
         pre_phi=pre_phi*phase_mask
         lossA=criterion(pre_A,target_A).float()
-        lossphi=criterion(pre_phi,delta_phi).float()*phi_norm
-        total_loss=lossA+lossphi*1e-5
+        lossphi=criterion(pre_phi,delta_phi).float()
+        total_loss=lossA+lossphi
+        if torch.isnan(total_loss):
+            print('loss is nan , break')
+            break
         optimizer.zero_grad()
         total_loss.backward()
         optimizer.step()
         
         if epoch%50==0:
+            print(torch.sum(pre_A))
             print('A:{:.9f},phi:{:.9f},total:{:.9f}'.format(lossA,lossphi,total_loss))
         early_stopping(-total_loss, model)
         if early_stopping.early_stop:

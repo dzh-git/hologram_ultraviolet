@@ -50,6 +50,7 @@ class TransmissionLayer(torch.nn.Module):
         self.args=parameters.my_parameters().get_hyperparameter()
         self.actual_situation = parameters.my_parameters().get_actualparameter()
         self.phase = torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
+        # self.phase = torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=[2,self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
         self.dropout = nn.Dropout(p=0.1, inplace=False)
         #左右旋
         self.grometry_mask=torch.nn.Parameter(
@@ -60,8 +61,8 @@ class TransmissionLayer(torch.nn.Module):
         if self.actual_situation.manufacturing_error:
             mask =self.phase + torch.from_numpy(np.random.random(size=[self.args.img_size
                     ,self.args.img_size]).astype('float32')).cuda()*random.choice([1,-1])*2
-            new_phase=torch.mul(self.grometry_mask,self.phase)
-            mask=torch.complex(torch.cos(new_phase), torch.sin(new_phase))
+            # new_phase=torch.mul(self.grometry_mask,self.phase)
+            mask=torch.complex(torch.cos(self.phase), torch.sin(self.phase))
         else:
             new_phase=torch.mul(self.grometry_mask,self.phase)
             mask=torch.complex(torch.cos(new_phase), torch.sin(new_phase))
@@ -73,7 +74,6 @@ class DTLayer(torch.nn.Module):
         super(DTLayer,self).__init__()
         self.dif=DiffractiveLayer()
         self.tra=TransmissionLayer()
-        
 
     def forward(self,x):
         x=self.dif(x)
@@ -116,11 +116,11 @@ class Net(torch.nn.Module):
         # return x
     
         res_angle=torch.angle(x[1,:,:])-torch.angle(x[0,:,:])
-        res_angle=(res_angle+2*torch.pi)%(2*torch.pi)
+        res_angle=res_angle%(2*torch.pi)
 
-        x_abs=abs(x) ; x_energy=x_abs*x_abs
-        x_energy=x_energy/torch.sum(x_energy)
-        return (x_energy,res_angle)
+        x_abs=abs(x) ; #x_energy=x_abs*x_abs
+        # x_energy=x_energy/torch.sum(x_energy)
+        return (x_abs,res_angle)
 
 if __name__=="__main__":
     # x=torch.randn((2,1,51,51))
