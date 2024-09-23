@@ -32,6 +32,17 @@ class DiffractiveLayer(torch.nn.Module):
         x_space = torch.fft.ifftshift(torch.fft.ifft2(k_space, dim=(1,2)), dim=(1,2))
         return x_space
 
+class DiffraFouriourLayer(torch.nn.Module):
+    def __init__(self):
+        super(DiffraFouriourLayer, self).__init__()
+        
+    #在频域进行计算，看信息光学
+    def forward(self, waves):
+        k_space=torch.fft.fft2(torch.fft.fftshift(waves, dim=(1,2)), dim=(1,2))
+        x_space = torch.fft.ifftshift(k_space, dim=(1,2))
+        return x_space
+ 
+
 class TransmissionLayer(torch.nn.Module):
     def __init__(self):
         super(TransmissionLayer, self).__init__()
@@ -65,8 +76,10 @@ class TransmissionLayer(torch.nn.Module):
 class DTLayer(torch.nn.Module):
     def __init__(self):
         super(DTLayer,self).__init__()
-        self.dif=DiffractiveLayer()
+        # self.dif=DiffractiveLayer()
+        self.dif=DiffraFouriourLayer()
         self.tra=TransmissionLayer()
+        
 
     def forward(self,x):
         x=self.dif(x)
