@@ -28,11 +28,9 @@ def main():
     AR=torch.from_numpy(AR).float() 
     target_A=torch.stack((AL,AR),0)
     delta_phi=torch.zeros((args.img_size,args.img_size))
-    delta_phi[args.img_size//2:,:args.img_size//2]=torch.pi/2 ; delta_phi[args.img_size//2:,args.img_size//2:]=torch.pi
-    delta_phi[:args.img_size//2,args.img_size//2:]=torch.pi*3/2
+    delta_phi[:args.img_size//2,:args.img_size//2]=0 ; delta_phi[:args.img_size//2,args.img_size//2:]=torch.pi
+    delta_phi[args.img_size//2:,:args.img_size//2]=torch.pi*3/2;delta_phi[args.img_size//2:,args.img_size//2:]=torch.pi/2
     #入射光
-    pixel_num=args.img_size*args.img_size
-    input_images=torch.ones(size=[2,args.img_size,args.img_size])/pixel_num 
     input_images_Total=torch.stack([torch.ones([args.img_size,args.img_size]),torch.ones([args.img_size,args.img_size])],0).float()
     input_images_R=torch.stack([torch.zeros([args.img_size,args.img_size]),torch.ones([args.img_size,args.img_size])],0).float()
     input_images_Total=input_images_Total/torch.sum(input_images_Total)
@@ -63,10 +61,9 @@ def main():
     plt.subplot(3,2,4)
     plt.imshow(pre_A[1,:,:],cmap='gray',vmin=np.min(pre_A[1,:,:]),vmax=np.max(pre_A[1,:,:]))
     plt.subplot(3,2,5)
-    plt.imshow(delta_phi,cmap='gray',vmin=0)
+    plt.imshow(delta_phi,cmap='gray',vmin=0,vmax=2*torch.pi)
     plt.subplot(3,2,6)
-    plt.imshow(pre_phi,cmap='gray',vmin=0)
-
+    plt.imshow(pre_phi,cmap='gray',vmin=0,vmax=2*torch.pi)
     plt.show()
 
 

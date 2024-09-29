@@ -37,8 +37,8 @@ def main(args):
     target_A=torch.stack((AL,AR),0)
 
     delta_phi=torch.zeros((args.img_size,args.img_size))
-    delta_phi[args.img_size//2:,:args.img_size//2]=torch.pi/2 ; delta_phi[args.img_size//2:,args.img_size//2:]=torch.pi
-    delta_phi[:args.img_size//2,args.img_size//2:]=torch.pi*3/2
+    delta_phi[:args.img_size//2,:args.img_size//2]=0 ; delta_phi[:args.img_size//2,args.img_size//2:]=torch.pi
+    delta_phi[args.img_size//2:,:args.img_size//2]=torch.pi*3/2;delta_phi[args.img_size//2:,args.img_size//2:]=torch.pi/2
     if device !='cpu':
         delta_phi=delta_phi.cuda()
         phase_mask=phase_mask.cuda()
@@ -65,7 +65,7 @@ def main(args):
     train_images=train_images/total_energy*1e6
 
     model=onn.Net()
-    model.load_state_dict(torch.load(r'./saved_model/best.pth'))
+    # model.load_state_dict(torch.load(r'./saved_model/best.pth'))
     model.to(device)
     
     criterion = torch.nn.MSELoss(reduction='sum') if device == "cpu" else torch.nn.MSELoss(reduction='sum').cuda()
@@ -80,7 +80,7 @@ def main(args):
         pre_phi=pre_phi*phase_mask
         lossA=criterion(pre_A,target_A).float()
         lossphi=criterion(pre_phi,delta_phi).float()
-        total_loss=lossA+lossphi
+        total_loss=lossA+lossphi*0.25
         if torch.isnan(total_loss):
             print('loss is nan , break')
             break

@@ -50,23 +50,43 @@ class TransmissionLayer(torch.nn.Module):
         self.args=parameters.my_parameters().get_hyperparameter()
         self.actual_situation = parameters.my_parameters().get_actualparameter()
         self.phase = torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
-        # self.phase = torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=[2,self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
+        #假如相位差不为pi,且tx，ty的膜为1,只引入相位差
+        self.txp=torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
+        self.typ=torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
+        
         self.dropout = nn.Dropout(p=0.1, inplace=False)
         #左右旋
         self.grometry_mask=torch.nn.Parameter(
             torch.stack([torch.ones([self.args.img_size,self.args.img_size]),-torch.ones([self.args.img_size,self.args.img_size])],0)
             .float(),requires_grad=False)
+        #
+        #空间复用
+        # mask_L2R=torch.from_numpy(np.fromfunction(lambda i, j: (i+j)%2,shape=(self.args.img_size, self.args.img_size), dtype=np.int16))
+        # mask_R2L=1-mask_L2R
+        # self.grometry_mask=torch.nn.Parameter(torch.stack((mask_L2R,mask_R2L),0).float(),requires_grad=False)
+        # self.cross_talk=torch.nn.Parameter(torch.stack((mask_R2L,mask_L2R),0).float(),requires_grad=False)
 
     def forward(self, x):
         if self.actual_situation.manufacturing_error:
             mask =self.phase + torch.from_numpy(np.random.random(size=[self.args.img_size
                     ,self.args.img_size]).astype('float32')).cuda()*random.choice([1,-1])*2
-            # new_phase=torch.mul(self.grometry_mask,self.phase)
-            mask=torch.complex(torch.cos(self.phase), torch.sin(self.phase))
-        else:
-            new_phase=torch.mul(self.grometry_mask,self.phase)
-            mask=torch.complex(torch.cos(new_phase), torch.sin(new_phase))
-        x=torch.mul(x,mask)
+        new_phase=torch.mul(self.grometry_mask,self.phase)
+        mask=torch.complex(torch.cos(new_phase), torch.sin(new_phase))
+        #假如相位差不为pi,且tx，ty的膜为1,只引入相位差
+        co=(torch.complex(torch.cos(self.txp), torch.sin(self.txp))+torch.complex(torch.cos(self.typ), torch.sin(self.typ)))/2
+        cross=(torch.complex(torch.cos(self.txp), torch.sin(self.txp))-torch.complex(torch.cos(self.typ), torch.sin(self.typ)))/2
+        temp=torch.mul(x,mask)  
+        #temp的0通道是右旋圆偏光，输入的x的0通道是左旋圆偏光，输出的x的0通道是右旋圆偏光
+        output=torch.zeros_like(x)
+        output[0,:,:]=co*x[1,:,:]+cross*temp[0,:,:]
+        output[1,:,:]=co*x[0,:,:]+cross*temp[1,:,:]
+        return output
+
+        #空间复用，考虑或不考虑串扰
+        # mask=torch.complex(torch.cos(self.phase), torch.sin(self.phase))
+        # out1=torch.mul(torch.mul(x,self.grometry_mask),mask)
+        # cross_x=torch.mul(torch.mul(x,self.cross_talk),-mask)
+        # x=out1+cross_x
         return x
 
 class DTLayer(torch.nn.Module):
