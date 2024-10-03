@@ -42,7 +42,7 @@ class DiffraFouriourLayer(torch.nn.Module):
         k_space=torch.fft.fft2(torch.fft.fftshift(waves, dim=(1,2)), dim=(1,2))
         x_space = torch.fft.ifftshift(k_space, dim=(1,2))
         return x_space
- 
+
 
 class TransmissionLayer(torch.nn.Module):
     def __init__(self):
@@ -72,15 +72,18 @@ class TransmissionLayer(torch.nn.Module):
                     ,self.args.img_size]).astype('float32')).cuda()*random.choice([1,-1])*2
         new_phase=torch.mul(self.grometry_mask,self.phase)
         mask=torch.complex(torch.cos(new_phase), torch.sin(new_phase))
-        #假如相位差不为pi,且tx，ty的膜为1,只引入相位差
+        # #假如相位差不为pi,且tx，ty的膜为1,只引入相位差
         co=(torch.complex(torch.cos(self.txp), torch.sin(self.txp))+torch.complex(torch.cos(self.typ), torch.sin(self.typ)))/2
         cross=(torch.complex(torch.cos(self.txp), torch.sin(self.txp))-torch.complex(torch.cos(self.typ), torch.sin(self.typ)))/2
         temp=torch.mul(x,mask)  
         #temp的0通道是右旋圆偏光，输入的x的0通道是左旋圆偏光，输出的x的0通道是右旋圆偏光
-        output=torch.zeros_like(x)
+        output=torch.complex(torch.zeros_like(x),torch.zeros_like(x))
         output[0,:,:]=co*x[1,:,:]+cross*temp[0,:,:]
         output[1,:,:]=co*x[0,:,:]+cross*temp[1,:,:]
         return output
+
+        temp=torch.mul(x,mask)  
+        return temp
 
         #空间复用，考虑或不考虑串扰
         # mask=torch.complex(torch.cos(self.phase), torch.sin(self.phase))
@@ -135,7 +138,7 @@ class Net(torch.nn.Module):
         x=self.dif(x)
         # return x
     
-        res_angle=torch.angle(x[1,:,:])-torch.angle(x[0,:,:])
+        res_angle=torch.angle(x[1,:,:])-torch.angle(x[0,:,:])   #左旋-右旋
         res_angle=res_angle%(2*torch.pi)
 
         x_abs=abs(x) ; #x_energy=x_abs*x_abs

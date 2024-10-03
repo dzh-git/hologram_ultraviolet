@@ -42,9 +42,9 @@ def convertLR2XY(Elr):
     if Elr.device !=conMat.device:
         conMat=conMat.cuda()
     [C,width,height]=Elr.shape
-    Elr=torch.reshape(Elr,shape=(2,-1))
+    Elr=torch.reshape(Elr,shape=(C,-1))
     Exy=torch.matmul(conMat,Elr)
-    Exy=torch.reshape(Exy,shape=(2,width,height))
+    Exy=torch.reshape(Exy,shape=(C,width,height))
     return Exy
 
 def convertLR2AB(Elr):
@@ -58,29 +58,28 @@ def convertLR2AB(Elr):
     return Eab
 
 def complex2Afai(E0):
-    amp1=torch.abs(E0[0,:,:]);amp2=torch.abs(E0[1,:,:])
-    amp=torch.stack((amp1,amp2),0)
-    fai=torch.angle(E0[0,:,:])-torch.angle(E0[1,:,:])   #左旋-右旋
+    amp=torch.abs(E0)
+    fai=torch.angle(E0[1,:,:])-torch.angle(E0[0,:,:])
     fai=(fai+2*torch.pi)%(2*torch.pi)
     return (amp,fai)
 
-def convertLR2stocks(E0,img_size):
-    conMat=torch.complex(torch.tensor([[1,1],[0,0]],dtype=torch.float32),torch.tensor([[0,0],[1,-1]],dtype=torch.float32))
-    if E0.device !=conMat.device:
-        conMat=conMat.cuda()
-    Erl=torch.reshape(E0,shape=(2,-1))
-    Exy=torch.matmul(conMat,Erl)
-    Exy=torch.reshape(Exy,shape=(2,img_size,img_size))
-
-    Exy_abs=abs(Exy); Exy_energy=Exy_abs*Exy_abs
-    summ=torch.sum(Exy_energy,dim=(0,1,2)) #归一化
-    Exy_energy=Exy_energy/summ
-
+#将左右旋转换为stocks参量
+def convertLR2stocks(E0):
+    Exy=convertLR2XY(E0)
+    Exy_abs,dfai=complex2Afai(Exy)
+    Exy_energy=Exy_abs*Exy_abs
+    #千万不要忘记归一化，以及对I0很小的值做处理
+    I0=Exy_energy[0,:,:]+Exy_energy[1,:,:]
+    I0[I0<1e-4]=1
     S1=Exy_energy[0,:,:]-Exy_energy[1,:,:]
-    EEE=Exy[0,:,:]*torch.conj(Exy[1,:,:])/summ
-    S2=2*torch.real(EEE)
-    S3=-2*torch.imag(EEE)
-    Stocks=torch.stack((S1,S2,S3),0)
+    S2=2*Exy_abs[0,:,:]*Exy_abs[1,:,:]*torch.cos(dfai)
+    S3=2*Exy_abs[0,:,:]*Exy_abs[1,:,:]*torch.sin(dfai)
+    # print("s1:{},s2:{},s3:{}".format(S1,S2,S3))
+    #法2,两种方法等价
+    # EEE=Exy[0,:,:]*torch.conj(Exy[1,:,:])
+    # S22=2*torch.real(EEE)
+    # S32=-2*torch.imag(EEE)
+    Stocks=torch.stack((S1,S2,S3),0)/I0
     return Stocks
 
 def calc_phaseMask(args,path1,path2):
@@ -91,3 +90,4 @@ def calc_phaseMask(args,path1,path2):
     phase=np.logical_or(img1,img2)
     pm=torch.from_numpy(phase)
     return pm
+

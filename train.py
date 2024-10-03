@@ -27,36 +27,19 @@ def main(args):
         os.mkdir(args.model_save_path)
 
     device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    
-    path1='./dataset/newleft.png';path2='./dataset/newright.png'
-    AL=load_img(args,path1)
-    AL=torch.from_numpy(AL).float() if device=='cpu' else torch.from_numpy(AL).float().cuda()
-    AR=load_img(args,path2)
-    AR=torch.from_numpy(AR).float() if device=='cpu' else torch.from_numpy(AR).float().cuda()
-    phase_mask=utils.calc_phaseMask(args,path1,path2)
+    AL=torch.from_numpy(np.load('./dataset/AL.npy'))
+    AR=torch.from_numpy(np.load('./dataset/AR.npy'))
     target_A=torch.stack((AL,AR),0)
+    delta_phi=torch.from_numpy(np.load('./dataset/delta_phi.npy'))
+    amplitude_mask=torch.from_numpy(np.load('./dataset/amplitude_mask.npy'))
 
-    delta_phi=torch.zeros((args.img_size,args.img_size))
-    delta_phi[:args.img_size//2,:args.img_size//2]=0 ; delta_phi[:args.img_size//2,args.img_size//2:]=torch.pi
-    delta_phi[args.img_size//2:,:args.img_size//2]=torch.pi*3/2;delta_phi[args.img_size//2:,args.img_size//2:]=torch.pi/2
     if device !='cpu':
+        target_A=target_A.cuda()
         delta_phi=delta_phi.cuda()
-        phase_mask=phase_mask.cuda()
-    delta_phi=delta_phi*phase_mask
-    target_A=target_A*phase_mask
-    target_A=target_A/2*1e6
-
-    # target_Eab=torch.load('./dataset/Eab.pt')
-    # target_Exy=torch.load('./dataset/Exy.pt')
-    # target_Elr=torch.load('./dataset/Elr.pt')
-    # gd_mask=torch.zeros([1000,1000])
-    # gd_mask[350:650,350:650]=torch.ones([300,300])
-
-    # if device !='cpu':
-    #     target_Eab=target_Eab.cuda()
-    #     target_Exy=target_Exy.cuda()
-    #     target_Elr=target_Elr.cuda()
-    #     gd_mask=gd_mask.cuda()
+        amplitude_mask=amplitude_mask.cuda()
+    delta_phi=delta_phi *amplitude_mask
+    target_A=target_A   *amplitude_mask
+    target_A=target_A/torch.sum(amplitude_mask)*1e6
 
     #线偏光入射
     pixel_num=args.img_size*args.img_size
@@ -76,11 +59,11 @@ def main(args):
         outputs=model(train_images)
         (pre_A,pre_phi)=outputs
 
-        pre_A=pre_A*phase_mask
-        pre_phi=pre_phi*phase_mask
+        pre_A=pre_A *amplitude_mask
+        pre_phi=pre_phi *amplitude_mask
         lossA=criterion(pre_A,target_A).float()
         lossphi=criterion(pre_phi,delta_phi).float()
-        total_loss=lossA+lossphi*0.25
+        total_loss=lossA+lossphi
         if torch.isnan(total_loss):
             print('loss is nan , break')
             break
