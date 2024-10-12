@@ -41,6 +41,7 @@ def main(args):
         target_A=target_A.cuda()
         delta_phi=delta_phi.cuda()
         amplitude_mask=amplitude_mask.cuda()
+        background_mask=background_mask.cuda()
     delta_phi=delta_phi *amplitude_mask
     target_A=target_A   *amplitude_mask
     pixel_num=torch.sum(amplitude_mask)
@@ -52,7 +53,7 @@ def main(args):
     LR=torch.stack((AL_C,AR_C),0)
     I_tar,stocks_tar =utils.convertLR2stocks(LR)
     I_tar=I_tar*amplitude_mask  
-    I_tar=I_tar/torch.mean(I_tar)  #目标图归一化强度
+    total_energy=torch.sum(I_tar)
     stocks_tar=stocks_tar*amplitude_mask
     
 
@@ -62,7 +63,7 @@ def main(args):
     
 
     model=onn.Net()
-    model.load_state_dict(torch.load(r'./saved_model/only_R.pth'))
+    model.load_state_dict(torch.load(r'./saved_model/best.pth'))
     model.to(device)
     
     criterion = torch.nn.MSELoss(reduction='sum') if device == "cpu" else torch.nn.MSELoss(reduction='sum').cuda()
@@ -83,21 +84,18 @@ def main(args):
         AR_C=torch.complex(pre_A[1,:,:]*torch.cos(pre_phi).float(),pre_A[1,:,:]*torch.sin(pre_phi).float())
         LR=torch.stack((AL_C,AR_C),0)
         I_pre,stocks_pre=utils.convertLR2stocks(LR)
-        I_pre=I_pre /torch.mean(I_pre) 
+        I_pre=I_pre /torch.sum(I_pre) *total_energy #能量归一化
         
-        background_I=I_pre*background_mask
         
-        mask_I=I_pre*amplitude_mask #mask部分能量分布，使其尽量均匀分布
-        mask_I=mask_I/torch.mean(mask_I) 
         
         stocks_pre=stocks_pre*amplitude_mask
 
-        loss_stocks=criterion(stocks_pre,stocks_tar).float()
-        loss_I1=criterion(I_pre,I_tar).float()  #损失：归一化后，整图光强分布误差
-        loss_I2=criterion(mask_I,I_tar).float() #损失：归一化后，mask部分光强分布误差
-        loss_I3=torch.sum(background_I)/torch.sum(mask_I) #损失：归一化后，背景光（噪声）能量与目标图像能量比值
-        # loss_energy = criterion(energy_pre,energy_tar).float() 
-        total_loss=20*loss_stocks/pixel_num+5*loss_I1/1e6+loss_I2/pixel_num #+ loss_I3
+        # loss_stocks=criterion(stocks_pre,stocks_tar).float()/pixel_num
+        loss_I1=criterion(I_pre,I_tar).float()/1e6  #损失：归一化后，整图光强分布误差
+        loss_s1=criterion(stocks_pre[0,:,:],stocks_tar[0,:,:]).float()/pixel_num
+        loss_s2=criterion(stocks_pre[1,:,:],stocks_tar[1,:,:]).float()/pixel_num
+        loss_s3=criterion(stocks_pre[2,:,:],stocks_tar[2,:,:]).float()/pixel_num
+        total_loss=loss_s1*1.2 + loss_s2*1.2 + loss_s3*1.2 +loss_I1
 
         if torch.isnan(total_loss):
             print('loss is nan , break')
@@ -107,7 +105,7 @@ def main(args):
         optimizer.step()
         
         if epoch%50==0:
-            print('loss_I1:{:.9f},loss_I2:{:.9f},loss_stocks:{:9f}'.format(loss_I1/1e6,loss_I2/pixel_num,loss_stocks/pixel_num))
+            print('loss_I1:{:.9f},loss_s1:{:.9f},loss_s2:{:9f},loss_s3:{:9f}'.format(loss_I1,loss_s1,loss_s2,loss_s3))
 
         early_stopping(-total_loss, model)
         if early_stopping.early_stop:

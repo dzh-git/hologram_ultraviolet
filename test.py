@@ -80,9 +80,14 @@ def error_showStocks():
     delta_phi=torch.from_numpy(np.load('./dataset/delta_phi.npy'))
     amplitude_mask=torch.from_numpy(np.load('./dataset/amplitude_mask.npy'))
 
-    #入射光
+    AL_C=torch.complex(target_A[0,:,:].float(),torch.zeros_like(target_A[0,:,:]).float())
+    AR_C=torch.complex(target_A[1,:,:]*torch.cos(delta_phi).float(),target_A[1,:,:]*torch.sin(delta_phi).float())
+    LR=torch.stack((AL_C,AR_C),0)
+    I_tar,stocks_tar =utils.convertLR2stocks(LR)
+    total_energy=torch.sum(I_tar)
+    
+    #入射光，入射光的能量应该设置为多少？目标图像能量是固定的，而输出图像能量是正比于入射光能量的。
     input_images_Total=torch.stack([torch.ones([args.img_size,args.img_size]),torch.ones([args.img_size,args.img_size])],0).float()
-    input_images_Total=input_images_Total 
 
     model=onn.Net()
     model.load_state_dict(torch.load('./saved_model/best.pth'))
@@ -102,28 +107,16 @@ def error_showStocks():
     
     LR=torch.stack((AL_C,AR_C),0)
     I_pre,stocks_pre=utils.convertLR2stocks(LR)
+    I_pre=I_pre /torch.sum(I_pre) *total_energy
 
-    AL_C=torch.complex(target_A[0,:,:].float(),torch.zeros_like(target_A[0,:,:]).float())
-    AR_C=torch.complex(target_A[1,:,:]*torch.cos(delta_phi).float(),target_A[1,:,:]*torch.sin(delta_phi).float())
-    LR=torch.stack((AL_C,AR_C),0)
-    I_tar,stocks_tar =utils.convertLR2stocks(LR)
-    I_pre=I_pre/torch.mean(I_pre)
-    I_tar=I_tar/torch.mean(I_tar)
-
-
-    loss_s1=criterion_mean(stocks_pre[0,:,:],stocks_tar[0,:,:]).float()
-    loss_s2=criterion_mean(stocks_pre[1,:,:],stocks_tar[1,:,:]).float()
-    loss_s3=criterion_mean(stocks_pre[2,:,:],stocks_tar[2,:,:]).float()
-    print('整图:stocks参量平均损失  s1:{:.9f},s2:{:.9f},s3:{:.9f}'.format(loss_s1,loss_s2,loss_s3))
     stocks_tar=stocks_tar*amplitude_mask
     stocks_pre=stocks_pre*amplitude_mask
     pixel_num=torch.sum(amplitude_mask)
-    loss_I =criterion_sum(I_pre,I_tar).float()/pixel_num
+    loss_I =criterion_sum(I_pre,I_tar).float()/1e6
     loss_s1=criterion_sum(stocks_pre[0,:,:],stocks_tar[0,:,:]).float()/pixel_num
     loss_s2=criterion_sum(stocks_pre[1,:,:],stocks_tar[1,:,:]).float()/pixel_num
     loss_s3=criterion_sum(stocks_pre[2,:,:],stocks_tar[2,:,:]).float()/pixel_num
     print('掩膜部分:stocks参量平均损失  s1:{:.9f},s2:{:.9f},s3:{:.9f},I:{:.9f}'.format(loss_s1,loss_s2,loss_s3,loss_I))
-
 
     print("*"*20)
     print("s1 min:{}, {}   ; max:{}, {}".format(torch.min(stocks_tar[0,:,:]),torch.min(stocks_pre[0,:,:]),

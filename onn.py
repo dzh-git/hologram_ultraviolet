@@ -54,9 +54,8 @@ class TransmissionLayer(torch.nn.Module):
         #表示对L偏振引入的相位
         self.phase = torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
         #delta
-        # self.delta=torch.nn.Parameter(torch.from_numpy(2*np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
-        self.delta=torch.nn.Parameter(np.pi*t_ones,requires_grad=True)
-        
+        self.delta=torch.nn.Parameter(torch.from_numpy(2*np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)        
+        # self.delta=torch.nn.Parameter(np.pi * t_ones,requires_grad=True)
         self.t_zeros=torch.nn.Parameter(torch.zeros(size=[self.args.img_size,self.args.img_size]).float(),requires_grad=False)
         self.matrixI=torch.nn.Parameter(torch.complex(self.t_zeros, t_ones),requires_grad=False)
 
@@ -66,11 +65,6 @@ class TransmissionLayer(torch.nn.Module):
             torch.stack([torch.ones([self.args.img_size,self.args.img_size]),-torch.ones([self.args.img_size,self.args.img_size])],0)
             .float(),requires_grad=False)
         
-        #空间复用
-        # mask_L2R=torch.from_numpy(np.fromfunction(lambda i, j: (i+j)%2,shape=(self.args.img_size, self.args.img_size), dtype=np.int16))
-        # mask_R2L=1-mask_L2R
-        # self.grometry_mask=torch.nn.Parameter(torch.stack((mask_L2R,mask_R2L),0).float(),requires_grad=False)
-        # self.cross_talk=torch.nn.Parameter(torch.stack((mask_R2L,mask_L2R),0).float(),requires_grad=False)
 
     def forward(self, x):
         if self.actual_situation.manufacturing_error:
@@ -82,20 +76,15 @@ class TransmissionLayer(torch.nn.Module):
         temp=torch.mul(x,mask)
         
         #假如相位差不为pi,只引入相位差
-        self.delta.data.clamp_(0,np.pi)
         delta=utils.dequantize_tensor(utils.quantize_tensor(self.delta))
-        now_cos=torch.complex(torch.cos(delta).float(), self.t_zeros)
-        now_sin=torch.complex(torch.sin(delta).float(), self.t_zeros)
+
+        now_cos=torch.complex(torch.cos(delta/2).float(), self.t_zeros)
+        now_sin=torch.complex(torch.sin(delta/2).float(), self.t_zeros)
         
         output=torch.complex(torch.zeros_like(x),torch.zeros_like(x))
         #output的0通道是左旋圆偏光
-        #2pi
-        # output[0,:,:]=0.5*(-1-temp[1,:,:]+(-1+temp[1,:,:])*now_cos) 
-        # output[1,:,:]=-0.5*self.matrixI*(1-temp[1,:,:])*now_sin
-        
-        #半波，pi
-        output[0,:,:]=0.5*(1-temp[1,:,:])*now_sin 
-        output[1,:,:]=-0.5*self.matrixI*(1+temp[1,:,:]+(1-temp[1,:,:])*now_cos)
+        output[0,:,:]=now_cos-self.matrixI*now_sin*temp[0,:,:] #output的0通道是左旋圆偏光，输入的x的1通道是左旋圆偏光
+        output[1,:,:]=now_cos-self.matrixI*now_sin*temp[1,:,:]
         return output
 
         return temp
@@ -152,7 +141,7 @@ class Net(torch.nn.Module):
         x=self.tra(x)
         x=self.dif(x)
         # return x
-    
+        
         res_angle=torch.angle(x[1,:,:])-torch.angle(x[0,:,:])   #右旋-左旋
         res_angle=res_angle%(2*torch.pi)
 
