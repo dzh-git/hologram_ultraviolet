@@ -3,17 +3,8 @@ import numpy as np
 import parameters
 import random
 import torch.nn as nn
+import utils
 
-#量化
-def quantize_tensor(x):
-    scale=2*np.pi/8
-    q_x=x/scale
-    q_x=q_x.round()%8
-    return q_x
-#反量化
-def dequantize_tensor(q_x):
-    scale=2*np.pi/8
-    return scale*q_x
 
 class DiffractiveLayer(torch.nn.Module):
     def __init__(self):
@@ -59,12 +50,15 @@ class TransmissionLayer(torch.nn.Module):
         super(TransmissionLayer, self).__init__()
         self.args=parameters.my_parameters().get_hyperparameter()
         self.actual_situation = parameters.my_parameters().get_actualparameter()
+        t_ones=torch.ones(size=[self.args.img_size,self.args.img_size]).float()
         #表示对L偏振引入的相位
         self.phase = torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
-        #假如相位差不为pi,且tx，ty的膜为1,只引入相位差
-        self.delta=torch.nn.Parameter(torch.from_numpy(2 * np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
-        self.matrixI=torch.nn.Parameter(torch.complex(torch.zeros(size=[self.args.img_size,self.args.img_size]).float(),
-                                                      torch.ones(size=[self.args.img_size,self.args.img_size]).float()),requires_grad=False)
+        #delta
+        # self.delta=torch.nn.Parameter(torch.from_numpy(2*np.pi * np.random.random(size=[self.args.img_size,self.args.img_size]).astype('float32')),requires_grad=True)
+        self.delta=torch.nn.Parameter(np.pi*t_ones,requires_grad=True)
+        
+        self.t_zeros=torch.nn.Parameter(torch.zeros(size=[self.args.img_size,self.args.img_size]).float(),requires_grad=False)
+        self.matrixI=torch.nn.Parameter(torch.complex(self.t_zeros, t_ones),requires_grad=False)
 
         self.dropout = nn.Dropout(p=0.1, inplace=False)
         #左右旋
@@ -84,18 +78,26 @@ class TransmissionLayer(torch.nn.Module):
                     ,self.args.img_size]).astype('float32')).cuda()*random.choice([1,-1])*2
         new_phase=torch.mul(self.grometry_mask,self.phase)
         mask=torch.complex(torch.cos(new_phase), torch.sin(new_phase))
-        # #假如相位差不为pi,只引入相位差
-        delta=dequantize_tensor(quantize_tensor(self.delta))
-        trans_cos=torch.cos(delta/2)
-        trans_sin=torch.sin(delta/2)
+        #0通道是正，1通道是负
+        temp=torch.mul(x,mask)
         
-        temp=torch.mul(x,mask)  #temp的0通道是左旋圆偏光
+        #假如相位差不为pi,只引入相位差
+        self.delta.data.clamp_(0,np.pi)
+        delta=utils.dequantize_tensor(utils.quantize_tensor(self.delta))
+        now_cos=torch.complex(torch.cos(delta).float(), self.t_zeros)
+        now_sin=torch.complex(torch.sin(delta).float(), self.t_zeros)
+        
         output=torch.complex(torch.zeros_like(x),torch.zeros_like(x))
-        output[0,:,:]=trans_cos*x[1,:,:]-self.matrixI*trans_sin*temp[0,:,:] #output的0通道是左旋圆偏光，输入的x的1通道是左旋圆偏光
-        output[1,:,:]=trans_cos*x[0,:,:]-self.matrixI*trans_sin*temp[1,:,:]
+        #output的0通道是左旋圆偏光
+        #2pi
+        # output[0,:,:]=0.5*(-1-temp[1,:,:]+(-1+temp[1,:,:])*now_cos) 
+        # output[1,:,:]=-0.5*self.matrixI*(1-temp[1,:,:])*now_sin
+        
+        #半波，pi
+        output[0,:,:]=0.5*(1-temp[1,:,:])*now_sin 
+        output[1,:,:]=-0.5*self.matrixI*(1+temp[1,:,:]+(1-temp[1,:,:])*now_cos)
         return output
 
-        temp=torch.mul(x,mask)  
         return temp
 
         #空间复用，考虑或不考虑串扰
@@ -151,7 +153,7 @@ class Net(torch.nn.Module):
         x=self.dif(x)
         # return x
     
-        res_angle=torch.angle(x[1,:,:])-torch.angle(x[0,:,:])   #左旋-右旋
+        res_angle=torch.angle(x[1,:,:])-torch.angle(x[0,:,:])   #右旋-左旋
         res_angle=res_angle%(2*torch.pi)
 
         x_abs=abs(x)

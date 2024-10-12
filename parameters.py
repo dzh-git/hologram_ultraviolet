@@ -8,7 +8,7 @@ class my_parameters:
         parser.add_argument("--img-size",type=int,default=1000)
         parser.add_argument("--batch-size",type=int,default=32)
         parser.add_argument("--num-epochs",type=int,default=10000)
-        parser.add_argument('--lr', type=float, default=1e-3, help='学习率')
+        parser.add_argument('--lr', type=float, default=1e-2, help='学习率')
         
         #model
         parser.add_argument("--model-save-path",type=str,default='./saved_model/') 
@@ -18,7 +18,7 @@ class my_parameters:
         
         #现实中可能出现的情况：非垂直入射，衍射层错位，衍射层制造存在误差等
         actual_parser=argparse.ArgumentParser()
-        actual_parser.add_argument("--distance",type=float,default=0.1) 
+        actual_parser.add_argument("--distance",type=float,default=0.2) 
         actual_parser.add_argument("--wave-length",type=float,default=266e-9) 
         actual_parser.add_argument("--screen-length",type=float,default=3e-3) 
         actual_parser.add_argument("--oblique-incidence",type=bool,default=False) 

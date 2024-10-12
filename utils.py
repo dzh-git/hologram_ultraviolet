@@ -72,7 +72,7 @@ def convertLR2stocks(E0):
     #千万不要忘记归一化，以及对I0很小的值做处理
     I0=Exy_energy[0,:,:]+Exy_energy[1,:,:]
     I0[I0<1e-6]=1e-6
-    S1=(Exy_energy[0,:,:]-Exy_energy[1,:,:])
+    S1=Exy_energy[0,:,:]-Exy_energy[1,:,:]
     S2=2*Exy_abs[0,:,:]*Exy_abs[1,:,:]*torch.cos(dfai)
     S3=2*Exy_abs[0,:,:]*Exy_abs[1,:,:]*torch.sin(dfai)
     # print("s1:{},s2:{},s3:{}".format(S1,S2,S3))
@@ -92,3 +92,13 @@ def calc_phaseMask(args,path1,path2):
     pm=torch.from_numpy(phase)
     return pm
 
+#量化
+def quantize_tensor(x):
+    scale=np.pi/8
+    q_x=x/scale
+    q_x=q_x.round()%8
+    return q_x
+#反量化
+def dequantize_tensor(q_x):
+    scale=np.pi/8
+    return scale*q_x

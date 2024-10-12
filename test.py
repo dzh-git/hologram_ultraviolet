@@ -82,10 +82,10 @@ def error_showStocks():
 
     #入射光
     input_images_Total=torch.stack([torch.ones([args.img_size,args.img_size]),torch.ones([args.img_size,args.img_size])],0).float()
-    input_images_Total=input_images_Total/torch.sum(input_images_Total)*1e6
+    input_images_Total=input_images_Total 
 
     model=onn.Net()
-    model.load_state_dict(torch.load('./saved_model/test.pth'))
+    model.load_state_dict(torch.load('./saved_model/best.pth'))
     model.eval()
     outputs_L=model(input_images_Total)
     (pre_A,pre_phi)=outputs_L
@@ -95,32 +95,20 @@ def error_showStocks():
     criterion_sum = torch.nn.MSELoss(reduction='sum')
     criterion_mean = torch.nn.MSELoss(reduction='mean')
 
-    print("*"*20)
-    lossA=criterion_mean(pre_A,target_A).float()
-    lossphi=criterion_mean(pre_phi,delta_phi).float()
-    print('整幅图平均损失： A:{:.9f},phi:{:.9f}'.format(lossA,lossphi))
-
-    #计算有掩膜部分误差
-    target_A_mask=target_A*amplitude_mask
-    delta_phi_mask=delta_phi*amplitude_mask
-    pre_A_mask=pre_A*amplitude_mask
-    pre_phi_mask=pre_phi*amplitude_mask
-    pixel_num=torch.sum(amplitude_mask)
-    lossA=criterion_sum(pre_A_mask,target_A_mask).float()/pixel_num
-    lossphi=criterion_sum(pre_phi_mask,delta_phi_mask).float()/pixel_num
-    print('掩膜覆盖部分平均损失  A:{:.9f},phi:{:.9f}'.format(lossA,lossphi))
-
     #stocks参量损失
     print("*"*20)
-    AL_C=torch.complex(pre_A[1,:,:]*torch.cos(pre_phi).float(),pre_A[1,:,:]*torch.sin(pre_phi).float())
-    AR_C=torch.complex(pre_A[0,:,:].float(),torch.zeros_like(pre_A[0,:,:]).float())
+    AL_C=torch.complex(pre_A[0,:,:].float(),torch.zeros_like(pre_A[0,:,:]).float())
+    AR_C=torch.complex(pre_A[1,:,:]*torch.cos(pre_phi).float(),pre_A[1,:,:]*torch.sin(pre_phi).float())
+    
     LR=torch.stack((AL_C,AR_C),0)
     I_pre,stocks_pre=utils.convertLR2stocks(LR)
 
-    AL_C=torch.complex(target_A[1,:,:]*torch.cos(delta_phi).float(),target_A[1,:,:]*torch.sin(delta_phi).float())
-    AR_C=torch.complex(target_A[0,:,:].float(),torch.zeros_like(target_A[0,:,:]).float())
+    AL_C=torch.complex(target_A[0,:,:].float(),torch.zeros_like(target_A[0,:,:]).float())
+    AR_C=torch.complex(target_A[1,:,:]*torch.cos(delta_phi).float(),target_A[1,:,:]*torch.sin(delta_phi).float())
     LR=torch.stack((AL_C,AR_C),0)
     I_tar,stocks_tar =utils.convertLR2stocks(LR)
+    I_pre=I_pre/torch.mean(I_pre)
+    I_tar=I_tar/torch.mean(I_tar)
 
 
     loss_s1=criterion_mean(stocks_pre[0,:,:],stocks_tar[0,:,:]).float()
@@ -129,6 +117,7 @@ def error_showStocks():
     print('整图:stocks参量平均损失  s1:{:.9f},s2:{:.9f},s3:{:.9f}'.format(loss_s1,loss_s2,loss_s3))
     stocks_tar=stocks_tar*amplitude_mask
     stocks_pre=stocks_pre*amplitude_mask
+    pixel_num=torch.sum(amplitude_mask)
     loss_I =criterion_sum(I_pre,I_tar).float()/pixel_num
     loss_s1=criterion_sum(stocks_pre[0,:,:],stocks_tar[0,:,:]).float()/pixel_num
     loss_s2=criterion_sum(stocks_pre[1,:,:],stocks_tar[1,:,:]).float()/pixel_num
@@ -218,16 +207,6 @@ def show_output_np(phase):
     plt.show()
     return
 
-#量化
-def quantize_tensor(x):
-    scale=2*np.pi/8
-    q_x=x/scale
-    q_x=q_x.round()%8
-    return q_x
-#反量化
-def dequantize_tensor(q_x):
-    scale=2*np.pi/8
-    return scale*np.float32(q_x)
 
 #将模型参数保存为mat格式
 #phase：旋转角R【0，2*pi】，量化为8阶，为0-7
@@ -240,11 +219,12 @@ def phase_extra():
     SD1=model.state_dict()
     phase1=SD1['tra.phase']
     phase=phase1.detach().numpy()
-    tx1=SD1['tra.delta']
-    delta=tx1.detach().numpy()
+    delta=SD1['tra.delta']
+    delta.data.clamp_(0,np.pi)
+    delta=delta.detach().numpy()
     
     #模型量化
-    q_delta=quantize_tensor(delta)
+    q_delta=utils.quantize_tensor(delta)
     scale_phase=2*np.pi/65536
     q_phase=(phase/scale_phase).round()%65536
     
@@ -259,7 +239,7 @@ def phase_extra():
     input_images_Total=input_images_Total/torch.sum(input_images_Total)*1e6
 
     SD1=model.state_dict()
-    new_delta=dequantize_tensor(q_delta)
+    new_delta=utils.dequantize_tensor(q_delta)
     SD1['tra.delta']=torch.from_numpy(new_delta)
 
     new_phase=q_phase*scale_phase
@@ -271,26 +251,23 @@ def phase_extra():
 def phase_extra_onlyR():
     #加载参数
     model=onn.Net()
-    model.load_state_dict(torch.load('./saved_model/only_R.pth'))
+    model.load_state_dict(torch.load('./saved_model/best.pth'))
     model.eval()
     SD1=model.state_dict()
     phase1=SD1['tra.phase']
     phase=phase1.detach().numpy()
-    #将phase转换到【-pi，pi】之间
-    # phase=phase-np.pi
-    
     # phase= scipy.io.loadmat("./saved_model/phase.mat")
     # phase=phase["phase"]
     
     #模型量化
-    q_phase=quantize_tensor(phase)
-
+    scale_phase=2*np.pi/65536
+    q_phase=(phase/scale_phase).round()%65536
     print("q_phase,min:{},max:{}".format(np.min(q_phase),np.max(q_phase)))
     
     #范围【0，2*pi】
     scipy.io.savemat("./saved_model/only_R.mat",{"phase":q_phase})
-    q_phase=dequantize_tensor(q_phase)
-    show_output_np(q_phase)
+    new_phase=q_phase*scale_phase
+    show_output_np(new_phase)
     return
     
 
@@ -300,12 +277,7 @@ if __name__=='__main__':
     # print(utils.convertLR2stocks(E0))
     
     # show_AF()
-    phase_extra()
+    # phase_extra()
     error_showStocks()
     # phase_extra_onlyR()
 
-
-
-
-    
-    
